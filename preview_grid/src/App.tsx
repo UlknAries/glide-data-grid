@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import DataEditor, {
     GridCellKind,
     GridColumnIcon,
@@ -7,6 +7,7 @@ import DataEditor, {
     type GridCell,
     type GridColumn,
     type GroupHeaderClickedEventArgs,
+    type HeaderClickedEventArgs,
     type Item,
 } from "@glide-data-grid-local";
 
@@ -23,6 +24,16 @@ function createColumns(): GridColumn[] {
 
 export default function App() {
     const columns = useMemo(createColumns, []);
+    const [contextMenu, setContextMenu] = useState<{
+        mouseX: number;
+        mouseY: number;
+        localEventX: number;
+        localEventY: number;
+        cell: Item;
+        kind: "cell" | "header" | "group-header";
+        columnTitle: string;
+        value: string;
+    }>();
 
     const getCellContent = useCallback((cell: Item): GridCell => {
         const [col, row] = cell;
@@ -86,6 +97,8 @@ export default function App() {
                 bounds: event.bounds,
                 localEventX: event.localEventX,
                 localEventY: event.localEventY,
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
                 button: event.button,
                 buttons: event.buttons,
                 shiftKey: event.shiftKey,
@@ -101,6 +114,96 @@ export default function App() {
             console.groupEnd();
         },
         [columns, getCellContent]
+    );
+
+    const onCellContextMenu = useCallback(
+        (cell: Item, event: CellClickedEventArgs) => {
+            event.preventDefault();
+
+            const content = getCellContent(cell);
+            const value = "displayData" in content ? String(content.displayData) : "";
+
+            console.log("[cell-context-menu]", {
+                cell,
+                localEventX: event.localEventX,
+                localEventY: event.localEventY,
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
+            });
+
+            setContextMenu({
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
+                localEventX: event.localEventX,
+                localEventY: event.localEventY,
+                cell,
+                kind: "cell",
+                columnTitle: columns[cell[0]]?.title ?? "Row marker",
+                value,
+            });
+        },
+        [columns, getCellContent]
+    );
+
+    const onHeaderContextMenu = useCallback(
+        (colIndex: number, event: HeaderClickedEventArgs) => {
+            event.preventDefault();
+
+            const column = columns[colIndex];
+            const title = column?.title ?? "Row marker header";
+
+            console.log("[header-context-menu]", {
+                colIndex,
+                title,
+                localEventX: event.localEventX,
+                localEventY: event.localEventY,
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
+            });
+
+            setContextMenu({
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
+                localEventX: event.localEventX,
+                localEventY: event.localEventY,
+                cell: [colIndex, -1],
+                kind: "header",
+                columnTitle: title,
+                value: "Column header",
+            });
+        },
+        [columns]
+    );
+
+    const onGroupHeaderContextMenu = useCallback(
+        (colIndex: number, event: GroupHeaderClickedEventArgs) => {
+            event.preventDefault();
+
+            const column = columns[colIndex];
+            const levelFromBottom = event.location[1] <= -2 ? -2 - event.location[1] : 0;
+
+            console.log("[group-header-context-menu]", {
+                colIndex,
+                group: event.group,
+                levelFromBottom,
+                localEventX: event.localEventX,
+                localEventY: event.localEventY,
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
+            });
+
+            setContextMenu({
+                mouseX: event.mouseX,
+                mouseY: event.mouseY,
+                localEventX: event.localEventX,
+                localEventY: event.localEventY,
+                cell: event.location,
+                kind: "group-header",
+                columnTitle: column?.title ?? `Column ${colIndex}`,
+                value: `Group "${event.group}", level ${levelFromBottom}`,
+            });
+        },
+        [columns]
     );
 
     const onGroupHeaderClicked = useCallback(
@@ -162,7 +265,7 @@ export default function App() {
     }, []);
 
     return (
-        <main className="page">
+        <main className="page" onPointerDown={() => setContextMenu(undefined)}>
             <h1>Glide Data Grid Preview</h1>
             <p>Local React + Vite page using source files from this repository.</p>
             <div className="grid-shell">
@@ -174,12 +277,54 @@ export default function App() {
                     getCellContent={getCellContent}
                     getGroupDetails={getGroupDetails}
                     onCellClicked={onCellClicked}
+                    onCellContextMenu={onCellContextMenu}
+                    onHeaderContextMenu={onHeaderContextMenu}
                     onGroupHeaderClicked={onGroupHeaderClicked}
+                    onGroupHeaderContextMenu={onGroupHeaderContextMenu}
                     rowMarkers="number"
                     smoothScrollX={true}
                     smoothScrollY={true}
                 />
             </div>
+            {contextMenu !== undefined && (
+                <div
+                    className="context-menu"
+                    style={{
+                        left: contextMenu.mouseX,
+                        top: contextMenu.mouseY,
+                    }}
+                    onPointerDown={event => event.stopPropagation()}>
+                    <div className="context-menu__header">
+                        <small>{contextMenu.kind}</small>
+                        <strong>
+                            {contextMenu.columnTitle} [{contextMenu.cell[0]}, {contextMenu.cell[1]}]
+                        </strong>
+                        <span>{contextMenu.value}</span>
+                    </div>
+                    <div className="context-menu__coords">
+                        <span>
+                            mouse: {Math.round(contextMenu.mouseX)}, {Math.round(contextMenu.mouseY)}
+                        </span>
+                        <span>
+                            local: {Math.round(contextMenu.localEventX)}, {Math.round(contextMenu.localEventY)}
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            void navigator.clipboard?.writeText(contextMenu.value);
+                            setContextMenu(undefined);
+                        }}>
+                        Copy value
+                    </button>
+                    <button type="button" onClick={() => console.log("[context-menu:inspect]", contextMenu)}>
+                        Inspect in console
+                    </button>
+                    <button type="button" onClick={() => setContextMenu(undefined)}>
+                        Close menu
+                    </button>
+                </div>
+            )}
         </main>
     );
 }

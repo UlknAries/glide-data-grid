@@ -15,6 +15,8 @@ export interface BaseGridMouseEventArgs {
 }
 
 export interface PositionableMouseEventArgs {
+    readonly mouseX: number;
+    readonly mouseY: number;
     readonly localEventX: number;
     readonly localEventY: number;
 }

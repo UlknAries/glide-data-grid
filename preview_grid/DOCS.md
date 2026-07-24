@@ -221,3 +221,95 @@ getGroupDetails={(group, ctx) => {
 ```
 
 This enables reliable theming for subgroup trees of arbitrary depth.
+
+## 12. Context menu coordinates
+
+Mouse event args for cells, headers, and group headers now expose viewport pointer coordinates next to the existing local coordinates:
+
+```ts
+interface PositionableMouseEventArgs {
+  readonly mouseX: number;
+  readonly mouseY: number;
+  readonly localEventX: number;
+  readonly localEventY: number;
+}
+```
+
+Meaning:
+
+* `localEventX` / `localEventY` are relative to the clicked cell or header bounds.
+* `mouseX` / `mouseY` are viewport coordinates, equivalent to DOM `clientX` / `clientY`.
+
+Use `mouseX` / `mouseY` when rendering a context menu with `position: fixed`:
+
+```tsx
+const [menu, setMenu] = useState<{ x: number; y: number; cell: Item }>();
+
+const onCellContextMenu = (cell: Item, event: CellClickedEventArgs) => {
+  event.preventDefault();
+
+  setMenu({
+    x: event.mouseX,
+    y: event.mouseY,
+    cell,
+  });
+};
+
+return (
+  <>
+    <DataEditor onCellContextMenu={onCellContextMenu} {...props} />
+    {menu !== undefined && (
+      <div
+        className="context-menu"
+        style={{
+          position: "fixed",
+          left: menu.x,
+          top: menu.y,
+        }}>
+        Context menu for {menu.cell[0]}, {menu.cell[1]}
+      </div>
+    )}
+  </>
+);
+```
+
+If you need document/page coordinates for an absolutely positioned element inside the document flow, add scroll offsets yourself:
+
+```ts
+const pageX = event.mouseX + window.scrollX;
+const pageY = event.mouseY + window.scrollY;
+```
+
+The local preview app demonstrates this by opening a cell context menu exactly at the right-click cursor position and showing both coordinate pairs.
+
+The same coordinates are available for normal column headers and group headers:
+
+```tsx
+const onHeaderContextMenu = (colIndex: number, event: HeaderClickedEventArgs) => {
+  event.preventDefault();
+
+  setMenu({
+    x: event.mouseX,
+    y: event.mouseY,
+    title: columns[colIndex]?.title,
+  });
+};
+
+const onGroupHeaderContextMenu = (colIndex: number, event: GroupHeaderClickedEventArgs) => {
+  event.preventDefault();
+
+  setMenu({
+    x: event.mouseX,
+    y: event.mouseY,
+    title: event.group,
+  });
+};
+
+return (
+  <DataEditor
+    onHeaderContextMenu={onHeaderContextMenu}
+    onGroupHeaderContextMenu={onGroupHeaderContextMenu}
+    {...props}
+  />
+);
+```

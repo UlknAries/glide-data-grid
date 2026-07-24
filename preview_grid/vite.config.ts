@@ -66,7 +66,9 @@ export default defineConfig({
                 plugins: ["@babel/plugin-proposal-class-properties"],
             },
         }),
-        react(),
+        react({
+            fastRefresh: false,
+        }),
     ],
     resolve: {
         alias: {
